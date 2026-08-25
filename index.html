@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#4f6df5" />
+  <title>Word Reader · 单词学习</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="app">
+    <!-- 单元选择 -->
+    <section id="home" class="home">
+      <h1 class="logo">Word Reader <small>英语单词·句子学习</small></h1>
+      <p class="subtitle">选择一个单元开始学习</p>
+      <div id="unitList" class="unit-list"></div>
+      <p class="tip">提示：进入单元后可切换「单词 / 句子」。句子支持点单个词查意思、单独朗读、整句朗读。</p>
+    </section>
+
+    <!-- 学习 -->
+    <section id="study" class="study hidden">
+      <div class="study-top">
+        <button id="backBtn" class="btn btn-ghost">‹ 单元</button>
+        <span id="progress" class="progress">0 / 0</span>
+      </div>
+
+      <div class="mode-switch" id="modeSwitch">
+        <button data-mode="word" class="is-active">单词</button>
+        <button data-mode="sentence">句子</button>
+      </div>
+
+      <div class="study-options">
+        <span class="opt-label">🐢 语速</span>
+        <div class="rate-btns" id="rateBtns">
+          <button data-rate="0.6">很慢</button>
+          <button data-rate="0.8">慢</button>
+          <button data-rate="1" class="is-active">正常</button>
+          <button data-rate="1.2">快</button>
+        </div>
+      </div>
+
+      <div class="card-wrap">
+        <div id="card" class="card"></div>
+      </div>
+
+      <div class="study-actions">
+        <button id="listenBtn" class="btn btn-line">🔊 朗读</button>
+        <button id="prevBtn" class="btn btn-line">‹ 上一词</button>
+        <button id="nextBtn" class="btn btn-primary">下一个 ›</button>
+      </div>
+
+      <p id="ttsWarn" class="tts-warn hidden"></p>
+    </section>
+  </main>
+
+  <script src="js/storage.js"></script>
+  <script src="js/tts.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+
+# Node / 前端缓存
+node_modules/
+dist/
+
+# 构建产物 / 临时
+*.log
+.DS_Store
+Thumbs.db
