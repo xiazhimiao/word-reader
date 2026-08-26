@@ -142,7 +142,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, f.read(), ctype)
 
     def log_message(self, fmt, *args):
-        sys.stdout.write("%s %s\n" % (time.strftime("%H:%M:%S"), fmt % args))
+        # pythonw 无控制台时 sys.stdout 为 None，直接写会抛异常导致连接被关闭
+        out = sys.stdout
+        if out is None:
+            return
+        try:
+            out.write("%s %s\n" % (time.strftime("%H:%M:%S"), fmt % args))
+        except Exception:  # noqa: BLE001
+            pass
 
 
 if __name__ == "__main__":

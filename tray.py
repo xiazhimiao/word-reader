@@ -21,10 +21,18 @@ import socket
 import sys
 import threading
 import subprocess
+import time
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+
+# pythonw（无控制台）下 sys.stdout/stderr 为 None，print 会抛异常。
+# 这里把 stdout 换成不报错的空目标，保证托盘方式静默运行。
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w")
 
 # 复用 server.py 里的 HTTP 服务逻辑（不重复代码）
 try:
@@ -125,13 +133,16 @@ def stop(icon, item):
 
 
 def main():
-    # 1. 启动 HTTP 服务（后台线程）
+    # 1. 启动 HTTP 服务（独立线程，前台运行，不低于托盘循环）
     t = threading.Thread(target=serve_http, daemon=True)
     t.start()
 
     ip = get_lan_ip()
-    print("Word Reader 已启动: http://%s:%d" % (ip, PORT))
-    print("已加载系统托盘，右键图标可打开网页 / 查看IP / 停止服务。")
+    try:
+        print("Word Reader 已启动: http://%s:%d" % (ip, PORT))
+        print("已加载系统托盘，右键图标可打开网页 / 查看IP / 停止服务。")
+    except Exception:  # noqa: BLE001  (pythonw 下无 stdout)
+        pass
 
     # 2. 创建托盘图标
     icon = pystray.Icon(
@@ -139,21 +150,26 @@ def main():
         icon=build_icon(),
         title="Word Reader · 单词学习器\nhttp://%s:%d" % (ip, PORT),
         menu=pystray.Menu(
-            pystray.MenuItem("🌐 打开网页", on_open, default=True),
-            pystray.MenuItem("📋 复制访问地址", on_copy),
-            pystray.MenuItem("🖥 查看本机IP", on_ip),
-            pystray.MenuItem("🔄 重新加载数据", on_clear_cache),
+            pystray.MenuItem("打开网页", on_open, default=True),
+            pystray.MenuItem("复制访问地址", on_copy),
+            pystray.MenuItem("查看本机IP", on_ip),
+            pystray.MenuItem("重新加载数据", on_clear_cache),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("⏹ 停止服务", stop),
+            pystray.MenuItem("停止服务", stop),
         ),
     )
 
+    # run_detached: 托盘消息循环在独立线程运行，主线程退出交给守护线程管理
+    icon.run_detached()
+
+    # 主线程挂起等待（HTTP 线程 + 托盘线程持续运行）
     try:
-        icon.run()
+        while True:
+            time.sleep(1)
     except KeyboardInterrupt:
         pass
     finally:
-        sys.exit(0)
+        os._exit(0)
 
 
 if __name__ == "__main__":
