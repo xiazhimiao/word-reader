@@ -4,10 +4,10 @@ title Word Reader 启动器
 cd /d "%~dp0"
 
 echo ============================================
-echo   Word Reader 单词·句子学习器
-echo   http://127.0.0.1:8000   本机访问
-echo   http://你的电脑IP:8000   手机同WiFi访问
-echo   按 Ctrl+C 停止服务
+echo   Word Reader 单词·句子学习器  正在启动
+echo   启动后：任务栏右下角会出现 Word Reader 图标
+echo   右键图标 = 打开网页 / 查看IP / 停止服务
+echo   本机: http://127.0.0.1:8000
 echo ============================================
 echo.
 
@@ -19,16 +19,22 @@ if errorlevel 1 (
   exit /b 1
 )
 
-rem 检查 edge-tts 是否已装
+rem 检查边缘组件依赖是否齐全
 python -c "import edge_tts" >nul 2>nul
 if errorlevel 1 (
   echo [提示] 未检测到 edge-tts，正在安装（需能联网）...
   pip install edge-tts
 )
+python -c "import pystray, PIL" >nul 2>nul
+if errorlevel 1 (
+  echo [提示] 正在安装托盘组件 pystray...
+  pip install pystray pillow
+)
 
-echo 正在启动服务...
+echo 正在启动服务（窗口保持打开即可，可最小化）...
 echo.
-python server.py
+python tray.py
+
 echo.
 echo 服务已停止。
 pause
