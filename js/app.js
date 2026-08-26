@@ -30,10 +30,6 @@
 
   const $ = (s) => document.querySelector(s);
 
-  function cacheKey(id) {
-    return "wordreader_" + id + "_v3";
-  }
-
   function loadPrefs() {
     try {
       const r = parseFloat(localStorage.getItem("wordreader_rate"));
@@ -47,15 +43,8 @@
   }
 
   async function loadDeck(file) {
-    let cached = null;
-    try {
-      cached = localStorage.getItem(cacheKey(file));
-    } catch (e) {}
-    if (cached) {
-      const arr = JSON.parse(cached);
-      if (Array.isArray(arr) && arr.length) return arr;
-    }
-    const res = await fetch("./" + file);
+    // 始终从服务器拉取最新 CSV，避免旧 localStorage 缓存污染（导致释义错乱）
+    const res = await fetch("./" + file, { cache: "no-store" });
     if (!res.ok) throw new Error("加载 " + file + " 失败 (" + res.status + ")");
     const text = await res.text();
     return Store.parseCSV(text);
@@ -174,52 +163,69 @@
       "<div class='card-meaning'>" + esc(c.meaning) + "</div>";
   }
 
-  // 句子卡片：句子 + 单词块 + 单词释义
+  // 句子卡片：句子 + 单词块 + 单词释义 + 整句翻译（用 DOM API 构建，避免 HTML 转义问题）
   function renderSentenceCard(c) {
-    const tokens = c.term.split(/\s+/).filter(Boolean);
-    const words = tokens.map((tok) => {
-      const clean = tok.replace(/^[^a-zA-Z']+|[^a-zA-Z']+$/g, "");
-      return { disp: tok, clean, lower: clean.toLowerCase(), gloss: GLOSS[clean.toLowerCase()] || "" };
+    const tokens = splitWords(c.term);
+    const card = $("#card");
+    card.textContent = "";
+
+    // 类型角标
+    const flag = el("div", "card-flag");
+    flag.textContent = "句子";
+    card.appendChild(flag);
+
+    // 单词块容器
+    const wordsBox = el("div", "s-words");
+    const chips = [];
+    tokens.forEach((w, i) => {
+      const chip = el("span", w.gloss ? "s-word" : "s-word no-gloss");
+      chip.textContent = w.disp;
+      chip.dataset.i = String(i);
+      wordsBox.appendChild(chip);
+      chips.push(chip);
     });
+    card.appendChild(wordsBox);
 
-    let chunk = "", prevCls = "", chunks = "";
-    // 保持换行语义（原文以 "," /"." 分隔，这里按整句排）
-    chunks = words.map((w) => {
-      const cls = w.gloss ? "s-word" : "s-word no-gloss";
-      return "<span class='" + cls + "' data-i='" + words.indexOf(w) + "'>" + esc(w.disp) + "</span>";
-    }).join(" ");
+    // 当前词的释义
+    const worth = el("div", "s-worth");
+    card.appendChild(worth);
 
-    const translationHtml = c.meaning
-      ? "<div class='sent-tr'>" + esc(c.meaning) + "</div>"
-      : "";
+    // 整句翻译
+    if (c.meaning) {
+      const tr = el("div", "sent-tr");
+      tr.textContent = c.meaning;
+      card.appendChild(tr);
+    }
 
-    $("#card").innerHTML =
-      "<div class='card-flag'>句子</div>" +
-      "<div class='s-words' style='display:flex;flex-wrap:wrap;gap:8px;justify-content:center'>" + chunks + "</div>" +
-      "<div class='s-worth'></div>" +
-      translationHtml;
-
-    // 默认高亮第一个词并显示释义
     highlightWord(0, true);
   }
 
   function highlightWord(i, speakIt) {
-    const box = $("#card");
-    const ws = Array.from(box.querySelectorAll(".s-word"));
+    const card = $("#card");
+    const chips = Array.from(card.querySelectorAll(".s-word"));
     const c = cards[idx];
-    const tokens = c.term.split(/\s+/).filter(Boolean);
-    const wIdx = i;
-    ws.forEach((el, j) => el.classList.toggle("is-active", j === wIdx));
+    if (!c) return;
+    const tokens = splitWords(c.term);
+    const wIdx = Math.max(0, Math.min(i, tokens.length - 1));
 
-    const tok = tokens[wIdx];
-    const clean = tok.replace(/^[^a-zA-Z']+|[^a-zA-Z']+$/g, "");
-    const gloss = GLOSS[clean.toLowerCase()] || "(暂无释义，点击可单独朗读)";
+    chips.forEach((ch, j) => ch.classList.toggle("is-active", j === wIdx));
 
-    const worth = box.querySelector(".s-worth");
+    const raw = tokens[wIdx] ? tokens[wIdx].disp : "";
+    const gloss = tokens[wIdx] && tokens[wIdx].gloss
+      ? tokens[wIdx].gloss
+      : "(暂无释义，点击可单独朗读)";
+
+    const worth = card.querySelector(".s-worth");
     if (worth) {
-      worth.innerHTML = "<span class='w'>" + esc(tok) + "</span><span class='m'>" + esc(gloss) + "</span>";
+      const wSpan = el("span", "w");
+      wSpan.textContent = raw;
+      const mSpan = el("span", "m");
+      mSpan.textContent = gloss;
+      worth.textContent = "";
+      worth.appendChild(wSpan);
+      worth.appendChild(mSpan);
     }
-    if (speakIt) speakText(clean);
+    if (speakIt && tokens[wIdx]) speakText(tokens[wIdx].clean);
   }
 
   function next() {
@@ -287,18 +293,40 @@
   }
 
   function showTtsWarn(msg) {
-    const el = $("#ttsWarn");
-    el.textContent = msg;
-    el.classList.remove("hidden");
+    const warnEl = $("#ttsWarn");
+    warnEl.textContent = msg;
+    warnEl.classList.remove("hidden");
   }
 
   // ---------- 工具 ----------
   function esc(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function el(tag, cls) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    return node;
+  }
+  // 拆分句子为单词对象：disp=原始显示(去尾部标点)，clean=查词用(全小写去标点)
+  function splitWords(sentence) {
+    return String(sentence || "").split(/\s+/).filter(Boolean).map((tok) => {
+      const disp = tok; // 保留原句标点（如 Yes, / is. / He's），便于对照原句
+      const clean = tok.replace(/^[^a-zA-Z']+|[^a-zA-Z']+$/g, "").replace(/[^a-zA-Z']/g, ""); // 查词/朗读用，去标点
+      const lower = clean.toLowerCase();
+      return { disp, clean, lower, gloss: GLOSS[lower] || "" };
+    });
   }
   function $$(s) { return Array.from(document.querySelectorAll(s)); }
 
+  function showVersion() {
+    const v = (window.__APP_VER__ || "unknown") + " · " + (window.__DEMO__ || "dev");
+    const node = document.getElementById("appVersion");
+    if (node) node.textContent = v;
+    document.title = "Word Reader " + v;
+  }
+
   document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", showVersion);
 })();
