@@ -120,8 +120,8 @@ def on_clear_cache(icon, item):
 
 def stop(icon, item):
     icon.stop()
-    # 结束整个进程（连同后台 HTTP 服务线程）
-    sys.exit(0)
+    # 结束整个进程（连同后台 HTTP 服务线程），用 os._exit 安全终止不抛异常
+    os._exit(0)
 
 
 def main():
